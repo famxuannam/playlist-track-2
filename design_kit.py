@@ -134,6 +134,17 @@ html, body, .stApp {
     box-shadow: 0 1px 1px rgba(0,0,0,0.02);
 }
 
+/* Bản tương đương glass-card cho st.container(border=True) -- dùng khi cần bọc nhiều widget
+   Streamlit (text_input, button, metric...) vì HTML <div> tự dựng qua st.markdown KHÔNG bọc
+   được các widget nằm giữa (mỗi lệnh st.* render 1 khối DOM riêng, trình duyệt tự đóng thẻ
+   dở dang) -- st.container(border=True) mới thực sự tạo 1 khối DOM bao trọn nội dung bên trong. */
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    background: #fff !important;
+    border: 1px solid #d1d1d6 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.02) !important;
+}
+
 h1, h2, h3 { color: #1d1d1f !important; font-weight: 600 !important; letter-spacing: -0.5px !important; }
 hr { border-color: rgba(0,0,0,0.08) !important; }
 
