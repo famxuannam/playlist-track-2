@@ -145,6 +145,48 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     box-shadow: 0 1px 1px rgba(0,0,0,0.02) !important;
 }
 
+/* Hàng KPI (stat row) -- gắn key="kpi_row" cho st.container(border=True) bọc các
+   st.metric() để chỉ hàng đó có đường kẻ dọc phân cách, không ảnh hưởng các hàng cột khác. */
+.st-key-kpi_row [data-testid="stColumn"]:not(:last-child) {
+    border-right: 1px solid #d1d1d6;
+}
+.st-key-kpi_row [data-testid="stColumn"] {
+    padding: 0 16px;
+}
+.st-key-kpi_row [data-testid="stColumn"]:first-child {
+    padding-left: 4px;
+}
+
+/* Bảng chi tiết dựng bằng HTML thuần (st.dataframe dùng canvas nên khó ép nền trắng) --
+   cùng phong cách glass-card, số căn phải kiểu bảng số liệu. */
+.data-table-card {
+    background: #fff;
+    border: 1px solid #d1d1d6;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.02);
+}
+table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+table.data-table th {
+    text-align: left;
+    padding: 12px 16px;
+    color: #6e6e73;
+    font-weight: 500;
+    border-bottom: 1px solid #d1d1d6;
+    white-space: nowrap;
+}
+table.data-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid #ececee;
+    font-variant-numeric: tabular-nums;
+}
+table.data-table tr:last-child td { border-bottom: none; }
+table.data-table td:not(:first-child), table.data-table th:not(:first-child) { text-align: right; }
+
 h1, h2, h3 { color: #1d1d1f !important; font-weight: 600 !important; letter-spacing: -0.5px !important; }
 hr { border-color: rgba(0,0,0,0.08) !important; }
 
