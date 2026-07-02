@@ -12,7 +12,14 @@ App Streamlit theo dõi lượt view và lượt like của video/playlist YouTu
 
 1. Tạo project mới tại [supabase.com](https://supabase.com/).
 2. Vào **SQL Editor** → chạy nội dung file [`supabase_schema.sql`](./supabase_schema.sql) trong repo này để tạo các bảng `playlists`, `videos`, `snapshots`.
-3. Lấy **Project URL** và **API key** (Settings → API) để dùng ở bước 3.
+3. Lấy **Project URL** và key tại **Settings → API**. Supabase hiện có 2 loại key:
+   - **Secret key** (trước đây gọi là `service_role`) — bỏ qua Row Level Security (RLS) hoàn toàn.
+   - **Publishable key** (trước đây gọi là `anon`/`public`) — bị RLS chặn nếu bảng không có policy cho phép.
+
+   **Dùng Secret key cho `SUPABASE_KEY`** — vì app này chạy hoàn toàn phía server (Streamlit
+   backend), key không bao giờ lộ ra trình duyệt người dùng nên dùng secret key ở đây an toàn,
+   và không cần thêm RLS policy nào. Nếu bạn vẫn muốn dùng publishable key, xem phần
+   [Troubleshooting](#troubleshooting) để chạy thêm policy.
 
 ## 3. Cấu hình secrets
 
@@ -52,6 +59,22 @@ streamlit run app.py
 2. Vào [share.streamlit.io](https://share.streamlit.io/) → New app → chọn repo, branch, file `app.py`.
 3. Vào **App settings → Secrets** → dán nội dung giống `.streamlit/secrets.toml` (không upload file, chỉ paste nội dung qua UI).
 4. Deploy.
+
+## Troubleshooting
+
+### Lỗi `new row violates row-level security policy for table "..."`
+
+Xảy ra khi `SUPABASE_KEY` là **publishable key** (anon key) và bảng đang bật RLS nhưng
+chưa có policy cho phép truy cập. Chọn 1 trong 2 cách:
+
+- **Cách 1 (khuyến nghị):** đổi `SUPABASE_KEY` sang **secret key** (Supabase → Settings →
+  API → mục "Secret keys") — bỏ qua RLS hoàn toàn, không cần chạy thêm SQL nào.
+- **Cách 2:** giữ nguyên publishable key, chạy thêm khối SQL "TÙY CHỌN" ở cuối file
+  [`supabase_schema.sql`](./supabase_schema.sql) trong Supabase SQL Editor để tạo policy
+  cho phép đọc/ghi.
+
+Sau khi đổi secret trên Streamlit Cloud (Manage app → Settings → Secrets) hoặc file
+`.streamlit/secrets.toml` khi chạy local, cần khởi động lại app để áp dụng.
 
 ## Cấu trúc dự án
 
