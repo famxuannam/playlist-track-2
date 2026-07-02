@@ -21,30 +21,29 @@ st.markdown("# YouTube Playlist Tracker")
 st.caption("Theo dõi lượt view và lượt like của video/playlist YouTube theo thời gian.")
 
 # --- Thêm mục theo dõi mới ---
-st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-st.markdown("### Thêm mục theo dõi")
-col_url, col_btn = st.columns([4, 1])
-with col_url:
-    new_url = st.text_input(
-        "URL video hoặc playlist YouTube",
-        placeholder="https://www.youtube.com/playlist?list=... hoặc https://www.youtube.com/watch?v=...",
-        label_visibility="collapsed",
-    )
-with col_btn:
-    add_clicked = st.button("Theo dõi", type="primary")
-if add_clicked:
-    if not new_url.strip():
-        st.warning("Vui lòng nhập URL.")
-    else:
-        try:
-            with st.spinner("Đang lấy dữ liệu từ YouTube..."):
-                add_tracked_item(new_url)
-            st.cache_data.clear()
-            st.success("Đã thêm vào danh sách theo dõi.")
-            st.rerun()
-        except YouTubeAPIError as e:
-            st.error(str(e))
-st.markdown("</div>", unsafe_allow_html=True)
+with st.container(border=True):
+    st.markdown("### Thêm mục theo dõi")
+    col_url, col_btn = st.columns([4, 1])
+    with col_url:
+        new_url = st.text_input(
+            "URL video hoặc playlist YouTube",
+            placeholder="https://www.youtube.com/playlist?list=... hoặc https://www.youtube.com/watch?v=...",
+            label_visibility="collapsed",
+        )
+    with col_btn:
+        add_clicked = st.button("Theo dõi", type="primary")
+    if add_clicked:
+        if not new_url.strip():
+            st.warning("Vui lòng nhập URL.")
+        else:
+            try:
+                with st.spinner("Đang lấy dữ liệu từ YouTube..."):
+                    add_tracked_item(new_url)
+                st.cache_data.clear()
+                st.success("Đã thêm vào danh sách theo dõi.")
+                st.rerun()
+            except YouTubeAPIError as e:
+                st.error(str(e))
 
 st.write("")
 
@@ -100,12 +99,11 @@ card_specs = [
 ]
 for col, (label, value, delta) in zip(card_cols, card_specs):
     with col:
-        st.markdown("<div class='glass-card'>", unsafe_allow_html=True)
-        if delta is not None:
-            st.metric(label, f"{value:,}", delta=f"{delta:+,} hôm nay")
-        else:
-            st.metric(label, f"{value:,}")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            if delta is not None:
+                st.metric(label, f"{value:,}", delta=f"{delta:+,} hôm nay")
+            else:
+                st.metric(label, f"{value:,}")
 
 st.write("")
 
