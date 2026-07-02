@@ -90,16 +90,16 @@ per_video, totals = compute_playlist_metrics(videos, snapshots_by_video)
 
 st.markdown(f"## {selected_playlist['title']}")
 
-card_cols = st.columns(4)
 card_specs = [
     ("Tổng lượt view", totals["views"], totals["delta_today_views"]),
     ("Tổng lượt like", totals["likes"], totals["delta_today_likes"]),
     ("Δ View (lần cập nhật trước)", totals["delta_update_views"], None),
     ("Δ Like (lần cập nhật trước)", totals["delta_update_likes"], None),
 ]
-for col, (label, value, delta) in zip(card_cols, card_specs):
-    with col:
-        with st.container(border=True):
+with st.container(border=True, key="kpi_row"):
+    card_cols = st.columns(4)
+    for col, (label, value, delta) in zip(card_cols, card_specs):
+        with col:
             if delta is not None:
                 st.metric(label, f"{value:,}", delta=f"{delta:+,} hôm nay")
             else:
@@ -118,28 +118,61 @@ df = pd.DataFrame(per_video).rename(columns={
     "delta_today_views": "Δ View (hôm nay)",
     "delta_today_likes": "Δ Like (hôm nay)",
 })
-st.dataframe(
-    df.drop(columns=["video_id"]),
-    width='stretch',
-    hide_index=True,
-)
+table_df = df.drop(columns=["video_id"])
+table_html = ["<div class='data-table-card'><table class='data-table'><thead><tr>"]
+table_html += [f"<th>{col}</th>" for col in table_df.columns]
+table_html.append("</tr></thead><tbody>")
+for _, row in table_df.iterrows():
+    table_html.append("<tr>")
+    table_html.append(f"<td>{row['Video']}</td>")
+    for col in table_df.columns[1:]:
+        table_html.append(f"<td>{row[col]:,}</td>")
+    table_html.append("</tr>")
+table_html.append("</tbody></table></div>")
+st.markdown("".join(table_html), unsafe_allow_html=True)
 
 st.write("")
+
+
+def wrap_label(text, max_len=14):
+    """Bẻ tên video dài thành nhiều dòng (ngắt tại khoảng trắng) để trục X hiển thị
+    nằm ngang thay vì phải xoay chéo."""
+    words = text.split(" ")
+    lines, current = [], ""
+    for word in words:
+        candidate = f"{current} {word}".strip()
+        if len(candidate) > max_len and current:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return "<br>".join(lines)
+
 
 # --- Biểu đồ so sánh giữa các video ---
 st.markdown("### So sánh giữa các video")
 color_map = build_color_map(df["Video"].tolist())
+df["Video (nhãn trục)"] = df["Video"].apply(wrap_label)
 
-chart_specs = [
-    ("Tổng lượt view", "Views"),
-    ("Tổng lượt like", "Likes"),
-    ("Δ View hôm nay", "Δ View (hôm nay)"),
-    ("Δ Like hôm nay", "Δ Like (hôm nay)"),
-]
-chart_cols = st.columns(2)
-for i, (title, column) in enumerate(chart_specs):
-    with chart_cols[i % 2]:
-        st.markdown(f"**{title}**")
-        fig = px.bar(df, x="Video", y=column, color="Video", color_discrete_map=color_map)
-        fig = format_plotly_fig(fig)
-        st.plotly_chart(fig, width='stretch', config=PLOTLY_CONFIG)
+metric_options = {
+    "Tổng view": "Views",
+    "Tổng like": "Likes",
+    "Δ View hôm nay": "Δ View (hôm nay)",
+    "Δ Like hôm nay": "Δ Like (hôm nay)",
+}
+selected_metric_label = st.segmented_control(
+    "Chỉ số hiển thị",
+    options=list(metric_options.keys()),
+    default=list(metric_options.keys())[0],
+    required=True,
+    label_visibility="collapsed",
+)
+column = metric_options[selected_metric_label]
+
+fig = px.bar(df, x="Video (nhãn trục)", y=column, color="Video", color_discrete_map=color_map)
+fig = format_plotly_fig(fig)
+fig.update_layout(showlegend=False, xaxis_title=None, yaxis_title=None)
+fig.update_xaxes(tickangle=0, automargin=True)
+st.plotly_chart(fig, width='stretch', config=PLOTLY_CONFIG)
