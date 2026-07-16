@@ -31,6 +31,18 @@ def list_playlists():
     return res.data or []
 
 
+def count_videos_by_playlist():
+    """Số video của từng playlist -> dict playlist_id -> count. 1 query duy nhất (chỉ lấy
+    cột playlist_id), đếm ở Python để tránh N+1 query khi vẽ chip cho từng playlist."""
+    client = get_client()
+    res = client.table("videos").select("playlist_id").execute()
+    counts = {}
+    for row in res.data or []:
+        pid = row["playlist_id"]
+        counts[pid] = counts.get(pid, 0) + 1
+    return counts
+
+
 def get_videos_for_playlist(playlist_id):
     client = get_client()
     res = (
