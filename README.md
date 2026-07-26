@@ -51,7 +51,11 @@ streamlit run app.py
 - Nhập URL video hoặc playlist YouTube vào ô "Thêm mục theo dõi" → bấm **Theo dõi**.
 - Chọn playlist/video muốn xem trong danh sách.
 - Bấm **Cập nhật playlist này** để lấy số liệu mới nhất cho playlist đang chọn, hoặc **Cập nhật tất cả playlist** để cập nhật toàn bộ các mục đang theo dõi.
+- Mở card **Quản lý theo dõi** ở đầu trang để đổi thứ tự bằng nút lên/xuống hoặc xóa vĩnh viễn một mục. Xóa playlist cũng xóa video và lịch sử snapshot liên quan.
+- Khi cập nhật một playlist, app đồng bộ danh sách video với YouTube: video mới được thêm vào, video đã rời playlist bị xóa cùng lịch sử snapshot.
 - App hiển thị: tổng view/like, thay đổi so với lần cập nhật trước, thay đổi từ đầu ngày (theo giờ Việt Nam), bảng chi tiết từng video, và biểu đồ so sánh giữa các video trong playlist.
+
+Sau khi cập nhật source, hãy chạy query [`20260726_playlist_management.sql`](./supabase_migrations/20260726_playlist_management.sql) trong Supabase SQL Editor một lần để thêm cột sắp xếp `display_position` cho database hiện có.
 
 ## 6. Deploy lên Streamlit Community Cloud
 

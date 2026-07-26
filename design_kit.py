@@ -160,6 +160,11 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
     border: 1px solid #d1d1d6 !important;
     border-radius: 16px !important;
     box-shadow: 0 1px 1px rgba(0,0,0,0.02) !important;
+    padding: 18px !important;
+}
+
+div[data-testid="stVerticalBlockBorderWrapper"] > div {
+    background: transparent !important;
 }
 
 /* Hàng KPI (stat row) -- gắn key="kpi_row" cho st.container(border=True) bọc các
@@ -227,7 +232,35 @@ div[data-testid="stButton"] button[kind="secondary"] {
     font-weight: 500 !important;
     box-shadow: 0 1px 2px rgba(0,0,0,0.02) !important;
 }
-div[data-testid="stButton"] button { width: 100%; }
+div[data-testid="stButton"] button {
+    width: 100%;
+}
+.st-key-btn_refresh_all button,
+.st-key-btn_refresh_this button,
+.st-key-btn_add_new button {
+    white-space: nowrap !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+}
+.st-key-btn_refresh_all,
+.st-key-btn_refresh_this,
+.st-key-btn_add_new {
+    min-width: 200px !important;
+}
+.st-key-btn_refresh_all button::before,
+.st-key-btn_refresh_this button::before,
+.st-key-btn_add_new button::before {
+    font-family: 'Material Symbols Rounded' !important;
+    font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24 !important;
+    font-size: 18px !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+    margin-right: 8px !important;
+    display: inline-block !important;
+}
+.st-key-btn_refresh_all button::before { content: "update"; color: #ffffff; }
+.st-key-btn_refresh_this button::before { content: "update"; color: #ffffff; }
+.st-key-btn_add_new button::before { content: "add"; color: #ffffff; }
 
 .stSelectbox > div > div, .stTextInput > div > div > input {
     border-radius: 8px !important;

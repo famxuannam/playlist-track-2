@@ -7,6 +7,7 @@ create table if not exists playlists (
     youtube_playlist_id text unique,      -- null nếu là video đơn lẻ; video đơn lẻ dùng "video:<id>"
     title text not null,
     url text not null,
+    display_position bigint not null default 1000,
     created_at timestamptz not null default now()
 );
 
@@ -29,6 +30,17 @@ create table if not exists snapshots (
 
 create index if not exists snapshots_video_captured_idx on snapshots (video_id, captured_at desc);
 create index if not exists videos_playlist_idx on videos (playlist_id);
+create index if not exists playlists_display_position_idx on playlists (display_position);
+
+-- Migration cho database đã tạo trước khi có sắp xếp thủ công.
+alter table playlists add column if not exists display_position bigint;
+with numbered as (
+    select id, row_number() over (order by created_at) * 1000 as sort_value from playlists
+)
+update playlists set display_position = numbered.sort_value from numbered
+where playlists.id = numbered.id and playlists.display_position is null;
+alter table playlists alter column display_position set default 1000;
+alter table playlists alter column display_position set not null;
 
 -- ============================================================
 -- TÙY CHỌN: chỉ cần chạy khối dưới đây nếu bạn dùng "publishable key" (anon key) cho

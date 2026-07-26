@@ -10,9 +10,11 @@ from design_kit import PLOTLY_CONFIG, build_color_map, format_plotly_fig, icon, 
 from db import (
     add_tracked_item,
     count_videos_by_playlist,
+    delete_tracked_item,
     get_snapshots_for_videos,
     get_videos_for_playlist,
     list_playlists,
+    move_tracked_item,
     refresh_all,
     refresh_playlist,
 )
@@ -109,13 +111,13 @@ with header_left:
 with header_right:
     btn_all_col, btn_this_col, btn_add_col = st.columns(3)
     with btn_all_col:
-        clicked_refresh_all = st.button("Cập nhật tất cả", disabled=not playlists)
+        clicked_refresh_all = st.button("Cập nhật tất cả", disabled=not playlists, key="btn_refresh_all")
     with btn_this_col:
         clicked_refresh_this = st.button(
-            "Cập nhật playlist này", type="primary", disabled=selected_playlist is None
+            "Cập nhật playlist này", type="primary", disabled=selected_playlist is None, key="btn_refresh_this"
         )
     with btn_add_col:
-        clicked_add = st.button("+ Theo dõi mới", key="btn_add_new")
+        clicked_add = st.button("Theo dõi mới", key="btn_add_new")
 
 if clicked_add:
     show_add_dialog()
@@ -131,6 +133,45 @@ if clicked_refresh_all:
     st.cache_data.clear()
     st.success("Đã cập nhật tất cả.")
     st.rerun()
+
+# --- Quản lý các mục theo dõi ---
+with st.expander("Quản lý theo dõi", expanded=False):
+    st.caption("Sắp xếp thứ tự hiển thị hoặc xóa vĩnh viễn một mục cùng toàn bộ lịch sử theo dõi.")
+    pending_delete_id = st.session_state.get("pending_delete_id")
+    pending_item = next((item for item in playlists if item["id"] == pending_delete_id), None)
+    if pending_item:
+        st.warning(f"Xóa vĩnh viễn “{pending_item['title']}” và toàn bộ video, snapshots liên quan?")
+        confirm_col, cancel_col = st.columns(2)
+        with confirm_col:
+            if st.button("Xác nhận xóa", type="primary", key="confirm_delete"):
+                delete_tracked_item(pending_item["id"])
+                st.session_state.pop("pending_delete_id", None)
+                st.session_state.pop("playlist_pills", None)
+                st.rerun()
+        with cancel_col:
+            if st.button("Hủy", key="cancel_delete"):
+                st.session_state.pop("pending_delete_id", None)
+                st.rerun()
+
+    if not playlists:
+        st.info("Chưa có mục theo dõi để quản lý.")
+    for index, item in enumerate(playlists):
+        title_col, up_col, down_col, delete_col = st.columns([8, 1, 1, 1])
+        kind = "Video" if item["youtube_playlist_id"].startswith("video:") else "Playlist"
+        with title_col:
+            st.markdown(f"**{item['title']}**  \n:gray[{kind}]")
+        with up_col:
+            if st.button("↑", key=f"move_up_{item['id']}", disabled=index == 0, help="Đưa lên"):
+                move_tracked_item(item["id"], -1)
+                st.rerun()
+        with down_col:
+            if st.button("↓", key=f"move_down_{item['id']}", disabled=index == len(playlists) - 1, help="Đưa xuống"):
+                move_tracked_item(item["id"], 1)
+                st.rerun()
+        with delete_col:
+            if st.button("Xóa", key=f"delete_{item['id']}"):
+                st.session_state["pending_delete_id"] = item["id"]
+                st.rerun()
 
 if not playlists:
     st.info("Chưa có playlist/video nào được theo dõi. Bấm “+ Theo dõi mới” ở trên để thêm.")
