@@ -111,13 +111,13 @@ with header_left:
 with header_right:
     btn_all_col, btn_this_col, btn_add_col = st.columns(3)
     with btn_all_col:
-        clicked_refresh_all = st.button("Cập nhật tất cả", disabled=not playlists)
+        clicked_refresh_all = st.button("Cập nhật tất cả", disabled=not playlists, key="btn_refresh_all")
     with btn_this_col:
         clicked_refresh_this = st.button(
-            "Cập nhật playlist này", type="primary", disabled=selected_playlist is None
+            "Cập nhật playlist này", type="primary", disabled=selected_playlist is None, key="btn_refresh_this"
         )
     with btn_add_col:
-        clicked_add = st.button("+ Theo dõi mới", key="btn_add_new")
+        clicked_add = st.button("Theo dõi mới", key="btn_add_new")
 
 if clicked_add:
     show_add_dialog()
