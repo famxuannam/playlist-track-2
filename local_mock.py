@@ -1,116 +1,152 @@
-"""SQLite + YouTube giả lập cho phát triển local không cần secrets."""
+"""Dữ liệu demo cục bộ cho giao diện tracker, không dùng secrets hay API mạng."""
 from __future__ import annotations
 
-import hashlib
 import sqlite3
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from youtube_api import parse_youtube_url
 
 DB_PATH = Path(__file__).parent / ".local" / "playlist_tracker.db"
 
 
-def _db():
+def _connection() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    conn.executescript("""
-        create table if not exists playlists (id text primary key, youtube_playlist_id text unique, title text, url text, display_position integer, created_at text);
-        create table if not exists videos (id text primary key, youtube_video_id text, playlist_id text, title text, position integer, created_at text);
-        create table if not exists snapshots (id integer primary key autoincrement, video_id text, views integer, likes integer, captured_at text);
-    """)
-    columns = {row[1] for row in conn.execute("pragma table_info(playlists)")}
-    if "display_position" not in columns:
-        conn.execute("alter table playlists add column display_position integer")
-    conn.execute("update playlists set display_position = rowid * 1000 where display_position is null")
+    conn.executescript(
+        """
+        create table if not exists playlists (
+            id text primary key, title text not null, created_at text not null
+        );
+        create table if not exists videos (
+            id text primary key, playlist_id text not null, title text not null, position integer not null,
+            youtube_video_id text
+        );
+        create table if not exists snapshots (
+            video_id text not null, views integer not null, likes integer not null, captured_at text not null
+        );
+        """
+    )
+    columns = {row[1] for row in conn.execute("pragma table_info(videos)")}
+    if "youtube_video_id" not in columns:
+        conn.execute("alter table videos add column youtube_video_id text")
+    conn.execute(
+        """update videos set youtube_video_id = case id
+            when 'focus-1' then 'dQw4w9WgXcQ' when 'focus-2' then 'aqz-KE-bpKQ'
+            when 'design-1' then '3JZ_D3ELwOQ' when 'design-2' then 'kJQP7kiw5Fk'
+            when 'learn-1' then '9bZkp7q19f0' else id end
+            where youtube_video_id is null or youtube_video_id = id"""
+    )
     return conn
 
 
-def _now(): return datetime.now(timezone.utc).isoformat()
-def _rows(cursor): return [dict(row) for row in cursor.fetchall()]
-def _number(seed, low, high): return low + int(hashlib.sha256(seed.encode()).hexdigest()[:8], 16) % (high - low)
+def _seed_if_empty(conn: sqlite3.Connection) -> None:
+    if conn.execute("select 1 from playlists limit 1").fetchone():
+        return
+
+    now = datetime.now(timezone.utc)
+    previous = (now - timedelta(hours=8)).isoformat()
+    latest = (now - timedelta(minutes=12)).isoformat()
+    playlists = [
+        ("mock-focus", "Focus & deep work", (now - timedelta(days=3)).isoformat()),
+        ("mock-design", "Design inspiration", (now - timedelta(days=2)).isoformat()),
+        ("mock-learn", "Learning queue", (now - timedelta(days=1)).isoformat()),
+    ]
+    videos = [
+        ("focus-1", "mock-focus", "A calm hour of deep work", 0, "dQw4w9WgXcQ", 182_400, 6_820, 1_730, 68),
+        ("focus-2", "mock-focus", "How I plan a focused week", 1, "aqz-KE-bpKQ", 94_300, 3_910, 860, 42),
+        ("design-1", "mock-design", "Interfaces worth studying", 0, "3JZ_D3ELwOQ", 241_800, 11_240, 2_410, 103),
+        ("design-2", "mock-design", "Typography in product design", 1, "kJQP7kiw5Fk", 128_500, 5_640, 980, 51),
+        ("learn-1", "mock-learn", "A short lesson on data stories", 0, "9bZkp7q19f0", 76_200, 2_980, 620, 24),
+    ]
+    conn.executemany("insert into playlists values (?, ?, ?)", playlists)
+    conn.executemany(
+        "insert into videos values (?, ?, ?, ?, ?)",
+        [(video_id, playlist_id, title, position, youtube_id) for video_id, playlist_id, title, position, youtube_id, *_ in videos],
+    )
+    for video_id, *_prefix, views, likes, view_growth, like_growth in videos:
+        conn.executemany(
+            "insert into snapshots values (?, ?, ?, ?)",
+            [
+                (video_id, views - view_growth, likes - like_growth, previous),
+                (video_id, views, likes, latest),
+            ],
+        )
 
 
-def _info(video_id, title=None, refreshes=0):
-    return {
-        "title": title or f"Video mẫu {video_id[-6:]}",
-        "views": _number(video_id, 80_000, 1_900_000) + refreshes * _number(f"v:{video_id}", 100, 1_500),
-        "likes": _number(f"l:{video_id}", 2_000, 90_000) + refreshes * _number(f"k:{video_id}", 5, 120),
-    }
+def _rows(cursor: sqlite3.Cursor) -> list[dict]:
+    return [dict(row) for row in cursor.fetchall()]
 
 
-def list_playlists():
-    with _db() as conn: return _rows(conn.execute("select * from playlists order by display_position, created_at"))
+def list_playlists() -> list[dict]:
+    with _connection() as conn:
+        _seed_if_empty(conn)
+        return _rows(conn.execute("select * from playlists order by created_at desc"))
 
 
-def count_videos_by_playlist():
-    with _db() as conn:
-        counts = {}
-        for row in conn.execute("select playlist_id from videos"):
-            counts[row[0]] = counts.get(row[0], 0) + 1
-        return counts
+def get_videos_for_playlist(playlist_id: str) -> list[dict]:
+    with _connection() as conn:
+        _seed_if_empty(conn)
+        return _rows(conn.execute("select * from videos where playlist_id = ? order by position", (playlist_id,)))
 
 
-def get_videos_for_playlist(playlist_id):
-    with _db() as conn: return _rows(conn.execute("select * from videos where playlist_id=? order by position", (playlist_id,)))
+def get_snapshots_for_videos(video_ids: list[str]) -> dict[str, list[dict]]:
+    if not video_ids:
+        return {}
+    placeholders = ",".join("?" for _ in video_ids)
+    with _connection() as conn:
+        _seed_if_empty(conn)
+        rows = _rows(
+            conn.execute(
+                f"select * from snapshots where video_id in ({placeholders}) order by captured_at",
+                video_ids,
+            )
+        )
+    grouped = {video_id: [] for video_id in video_ids}
+    for row in rows:
+        grouped[row["video_id"]].append(row)
+    return grouped
 
 
-def get_snapshots(video_id):
-    with _db() as conn: return _rows(conn.execute("select * from snapshots where video_id=? order by captured_at", (video_id,)))
+def _mock_stats(seed: str):
+    value = sum(ord(char) for char in seed)
+    return 40_000 + value * 107, 1_600 + value * 11
 
 
-def get_snapshots_for_videos(video_ids): return {video_id: get_snapshots(video_id) for video_id in video_ids}
+def create_local_playlist(title: str) -> dict:
+    row = {"id": str(uuid.uuid4()), "title": title.strip(), "created_at": datetime.now(timezone.utc).isoformat()}
+    with _connection() as conn:
+        _seed_if_empty(conn)
+        conn.execute("insert into playlists values (:id, :title, :created_at)", row)
+    return row
 
 
-def _snapshot(conn, video_id, info):
-    conn.execute("insert into snapshots (video_id, views, likes, captured_at) values (?, ?, ?, ?)", (video_id, info["views"], info["likes"], _now()))
+def add_video_to_playlist(playlist_id: str, youtube_video_id: str) -> dict:
+    row = {"id": str(uuid.uuid4()), "playlist_id": playlist_id, "title": f"Video mẫu {youtube_video_id[-6:]}", "position": len(get_videos_for_playlist(playlist_id)), "youtube_video_id": youtube_video_id}
+    views, likes = _mock_stats(youtube_video_id)
+    with _connection() as conn:
+        conn.execute("insert into videos values (:id, :playlist_id, :title, :position, :youtube_video_id)", row)
+        conn.execute("insert into snapshots values (?, ?, ?, ?)", (row["id"], views, likes, datetime.now(timezone.utc).isoformat()))
+    return row
 
 
-def add_tracked_item(url):
-    kind, yt_id = parse_youtube_url(url)
-    external_id = yt_id if kind == "playlist" else f"video:{yt_id}"
-    with _db() as conn:
-        found = conn.execute("select * from playlists where youtube_playlist_id=?", (external_id,)).fetchone()
-        if found: return dict(found)
-        playlist_id = str(uuid.uuid4())
-        title = f"Playlist mẫu {yt_id[-6:]}" if kind == "playlist" else _info(yt_id)["title"]
-        row = {"id": playlist_id, "youtube_playlist_id": external_id, "title": title, "url": url, "display_position": 10_000_000, "created_at": _now()}
-        conn.execute("insert into playlists values (:id,:youtube_playlist_id,:title,:url,:display_position,:created_at)", row)
-        for position in range(5 if kind == "playlist" else 1):
-            video_id = yt_id if kind == "video" else f"{yt_id[:5]}{position:06d}"
-            local_id, video_title = str(uuid.uuid4()), title if kind == "video" else f"{title} — video {position + 1}"
-            conn.execute("insert into videos values (?,?,?,?,?,?)", (local_id, video_id, playlist_id, video_title, position, _now()))
-            _snapshot(conn, local_id, _info(video_id, video_title))
-        return row
+def import_youtube_playlist(url: str) -> dict:
+    playlist = create_local_playlist(f"Playlist mẫu {url[-6:]}")
+    for video_id in ("dQw4w9WgXcQ", "aqz-KE-bpKQ", "3JZ_D3ELwOQ"):
+        add_video_to_playlist(playlist["id"], video_id)
+    return playlist
 
 
-def refresh_playlist(playlist):
-    with _db() as conn:
-        for video in _rows(conn.execute("select * from videos where playlist_id=?", (playlist["id"],))):
-            count = conn.execute("select count(*) from snapshots where video_id=?", (video["id"],)).fetchone()[0]
-            _snapshot(conn, video["id"], _info(video["youtube_video_id"], video["title"], count))
+def delete_playlist(playlist_id: str) -> None:
+    with _connection() as conn:
+        ids = [row[0] for row in conn.execute("select id from videos where playlist_id = ?", (playlist_id,))]
+        conn.executemany("delete from snapshots where video_id = ?", [(video_id,) for video_id in ids])
+        conn.execute("delete from videos where playlist_id = ?", (playlist_id,))
+        conn.execute("delete from playlists where id = ?", (playlist_id,))
 
 
-def refresh_all():
-    for playlist in list_playlists(): refresh_playlist(playlist)
-
-
-def move_tracked_item(playlist_id, direction):
-    items = list_playlists()
-    index = next((i for i, item in enumerate(items) if item["id"] == playlist_id), None)
-    target = index + direction if index is not None else -1
-    if target < 0 or target >= len(items): return
-    with _db() as conn:
-        conn.execute("update playlists set display_position=? where id=?", (items[target]["display_position"], playlist_id))
-        conn.execute("update playlists set display_position=? where id=?", (items[index]["display_position"], items[target]["id"]))
-
-
-def delete_tracked_item(playlist_id):
-    with _db() as conn:
-        video_ids = [row[0] for row in conn.execute("select id from videos where playlist_id=?", (playlist_id,))]
-        if video_ids:
-            conn.executemany("delete from snapshots where video_id=?", [(video_id,) for video_id in video_ids])
-        conn.execute("delete from videos where playlist_id=?", (playlist_id,))
-        conn.execute("delete from playlists where id=?", (playlist_id,))
+def delete_video(video_id: str) -> None:
+    with _connection() as conn:
+        conn.execute("delete from snapshots where video_id = ?", (video_id,))
+        conn.execute("delete from videos where id = ?", (video_id,))
