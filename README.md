@@ -46,6 +46,14 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+Không có secrets, app tự mở **mock mode** với dữ liệu demo cục bộ; không gọi Supabase
+hoặc YouTube. Để ép dùng kết nối thật, chạy với `PLAYLIST_TRACKER_MODE=live` sau khi đã
+cấu hình secrets. Dữ liệu demo nằm ở `.local/playlist_tracker.db` và được gitignore.
+
+Khi deploy lên Streamlit Community Cloud, đặt ba secrets `YOUTUBE_API_KEY`,
+`SUPABASE_URL`, và `SUPABASE_KEY` trong **App settings → Secrets**. Có đủ ba giá trị,
+app tự dùng dữ liệu thật; nếu thiếu, app vẫn mở được bằng dữ liệu demo để tránh lỗi khởi động.
+
 ## 5. Sử dụng
 
 - Nhập URL video hoặc playlist YouTube vào ô "Thêm mục theo dõi" → bấm **Theo dõi**.

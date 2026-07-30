@@ -1,16 +1,31 @@
-"""Kết nối Supabase + các hàm CRUD/query cho playlists, videos, snapshots."""
+"""Kết nối Supabase, hoặc SQLite demo khi phát triển cục bộ không có secrets."""
+import os
 from datetime import datetime, timezone
 
 import streamlit as st
 from supabase import create_client
 
+import local_mock
+
 from youtube_api import (
+    YouTubeAPIError,
     fetch_playlist_title,
     fetch_playlist_video_ids,
     fetch_video_stats,
     fetch_single_video,
     parse_youtube_url,
 )
+
+
+def _has_live_secrets():
+    try:
+        return all(st.secrets.get(key) for key in ("SUPABASE_URL", "SUPABASE_KEY", "YOUTUBE_API_KEY"))
+    except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
+        return False
+
+
+_mode = os.getenv("PLAYLIST_TRACKER_MODE", "").lower()
+USE_MOCK = _mode == "mock" or (_mode != "live" and not _has_live_secrets())
 
 
 @st.cache_resource
@@ -26,12 +41,16 @@ def get_api_key():
 
 def list_playlists():
     """Tất cả mục đang theo dõi (playlist hoặc video đơn lẻ), mới nhất trước."""
+    if USE_MOCK:
+        return local_mock.list_playlists()
     client = get_client()
     res = client.table("playlists").select("*").order("created_at", desc=True).execute()
     return res.data or []
 
 
 def get_videos_for_playlist(playlist_id):
+    if USE_MOCK:
+        return local_mock.get_videos_for_playlist(playlist_id)
     client = get_client()
     res = (
         client.table("videos")
@@ -58,6 +77,8 @@ def get_snapshots(video_id):
 
 def get_snapshots_for_videos(video_ids):
     """Snapshot của nhiều video cùng lúc, gộp theo video_id -> list snapshot (cũ -> mới)."""
+    if USE_MOCK:
+        return local_mock.get_snapshots_for_videos(video_ids)
     if not video_ids:
         return {}
     client = get_client()
@@ -173,6 +194,56 @@ def add_tracked_item(url):
     ).data[0]
     insert_snapshots_bulk([{"video_id": video_row["id"], "views": info["views"], "likes": info["likes"]}])
     return playlist_row
+
+
+def import_youtube_playlist(url):
+    """Import one YouTube playlist as an independently tracked app playlist."""
+    kind, playlist_id = parse_youtube_url(url)
+    if kind != "playlist":
+        raise YouTubeAPIError("Hãy nhập URL playlist YouTube.")
+    if USE_MOCK:
+        return local_mock.import_youtube_playlist(url)
+    client, api_key = get_client(), get_api_key()
+    title = fetch_playlist_title(playlist_id, api_key)
+    playlist = client.table("playlists").insert({"youtube_playlist_id": playlist_id, "title": title, "url": url}).execute().data[0]
+    items = fetch_playlist_video_ids(playlist_id, api_key)
+    stats = fetch_video_stats([item["video_id"] for item in items], api_key)
+    rows = [{"youtube_video_id": item["video_id"], "playlist_id": playlist["id"], "title": stats[item["video_id"]]["title"] or item["title"], "position": item["position"]} for item in items if item["video_id"] in stats]
+    if rows:
+        inserted = client.table("videos").insert(rows).execute().data
+        insert_snapshots_bulk([{ "video_id": row["id"], "views": stats[row["youtube_video_id"]]["views"], "likes": stats[row["youtube_video_id"]]["likes"]} for row in inserted])
+    return playlist
+
+
+def create_local_playlist(title):
+    if USE_MOCK:
+        return local_mock.create_local_playlist(title)
+    return get_client().table("playlists").insert({"title": title, "url": "local://manual"}).execute().data[0]
+
+
+def add_video_to_playlist(playlist_id, url):
+    kind, video_id = parse_youtube_url(url)
+    if kind != "video":
+        raise YouTubeAPIError("Hãy nhập URL một video YouTube.")
+    if USE_MOCK:
+        return local_mock.add_video_to_playlist(playlist_id, video_id)
+    info = fetch_single_video(video_id, get_api_key())
+    position = len(get_videos_for_playlist(playlist_id))
+    video = get_client().table("videos").insert({"youtube_video_id": video_id, "playlist_id": playlist_id, "title": info["title"], "position": position}).execute().data[0]
+    insert_snapshots_bulk([{ "video_id": video["id"], "views": info["views"], "likes": info["likes"]}])
+    return video
+
+
+def delete_playlist(playlist_id):
+    if USE_MOCK:
+        return local_mock.delete_playlist(playlist_id)
+    get_client().table("playlists").delete().eq("id", playlist_id).execute()
+
+
+def delete_video(video_id):
+    if USE_MOCK:
+        return local_mock.delete_video(video_id)
+    get_client().table("videos").delete().eq("id", video_id).execute()
 
 
 def refresh_playlist(playlist_row):
