@@ -95,6 +95,14 @@ def get_snapshots_for_videos(video_ids):
     return grouped
 
 
+def count_tracked_videos():
+    """Số video đang được theo dõi, tính cả bản sao ở các playlist khác nhau."""
+    if USE_MOCK:
+        return local_mock.count_tracked_videos()
+    res = get_client().table("videos").select("id").execute()
+    return len(res.data or [])
+
+
 def insert_snapshot(video_id, views, likes):
     client = get_client()
     client.table("snapshots").insert({
@@ -266,5 +274,10 @@ def refresh_playlist(playlist_row):
 
 
 def refresh_all():
+    if USE_MOCK:
+        return local_mock.refresh_all()
+    refreshed = 0
     for playlist_row in list_playlists():
+        refreshed += len(get_videos_for_playlist(playlist_row["id"]))
         refresh_playlist(playlist_row)
+    return refreshed

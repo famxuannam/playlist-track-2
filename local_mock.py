@@ -109,6 +109,12 @@ def get_snapshots_for_videos(video_ids: list[str]) -> dict[str, list[dict]]:
     return grouped
 
 
+def count_tracked_videos() -> int:
+    with _connection() as conn:
+        _seed_if_empty(conn)
+        return conn.execute("select count(*) from videos").fetchone()[0]
+
+
 def _mock_stats(seed: str):
     value = sum(ord(char) for char in seed)
     return 40_000 + value * 107, 1_600 + value * 11
@@ -150,3 +156,23 @@ def delete_video(video_id: str) -> None:
     with _connection() as conn:
         conn.execute("delete from snapshots where video_id = ?", (video_id,))
         conn.execute("delete from videos where id = ?", (video_id,))
+
+
+def refresh_all() -> int:
+    """Thêm snapshot demo mới cho mọi video đã theo dõi."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _connection() as conn:
+        _seed_if_empty(conn)
+        videos = _rows(conn.execute("select id, youtube_video_id from videos order by id"))
+        for index, video in enumerate(videos, start=1):
+            latest = conn.execute(
+                "select views, likes from snapshots where video_id = ? order by captured_at desc limit 1",
+                (video["id"],),
+            ).fetchone()
+            view_growth = 40 + (sum(map(ord, video["youtube_video_id"] or video["id"])) % 260) + index
+            like_growth = max(1, view_growth // 18)
+            conn.execute(
+                "insert into snapshots values (?, ?, ?, ?)",
+                (video["id"], latest["views"] + view_growth, latest["likes"] + like_growth, now),
+            )
+    return len(videos)
