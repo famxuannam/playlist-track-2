@@ -38,6 +38,20 @@ def _connection() -> sqlite3.Connection:
             when 'learn-1' then '9bZkp7q19f0' else id end
             where youtube_video_id is null or youtube_video_id = id"""
     )
+    conn.executemany(
+        "update playlists set title = ? where id = ?",
+        [("Tập trung & làm việc sâu", "mock-focus"), ("Cảm hứng thiết kế", "mock-design"), ("Hàng chờ học tập", "mock-learn")],
+    )
+    conn.executemany(
+        "update videos set title = ? where id = ?",
+        [
+            ("Một giờ làm việc sâu trong yên tĩnh", "focus-1"),
+            ("Cách tôi lên kế hoạch cho một tuần tập trung", "focus-2"),
+            ("Những giao diện đáng để học hỏi", "design-1"),
+            ("Kiểu chữ trong thiết kế sản phẩm", "design-2"),
+            ("Bài học ngắn về kể chuyện bằng dữ liệu", "learn-1"),
+        ],
+    )
     return conn
 
 
@@ -49,16 +63,16 @@ def _seed_if_empty(conn: sqlite3.Connection) -> None:
     previous = (now - timedelta(hours=8)).isoformat()
     latest = (now - timedelta(minutes=12)).isoformat()
     playlists = [
-        ("mock-focus", "Focus & deep work", (now - timedelta(days=3)).isoformat()),
-        ("mock-design", "Design inspiration", (now - timedelta(days=2)).isoformat()),
-        ("mock-learn", "Learning queue", (now - timedelta(days=1)).isoformat()),
+        ("mock-focus", "Tập trung & làm việc sâu", (now - timedelta(days=3)).isoformat()),
+        ("mock-design", "Cảm hứng thiết kế", (now - timedelta(days=2)).isoformat()),
+        ("mock-learn", "Hàng chờ học tập", (now - timedelta(days=1)).isoformat()),
     ]
     videos = [
-        ("focus-1", "mock-focus", "A calm hour of deep work", 0, "dQw4w9WgXcQ", 182_400, 6_820, 1_730, 68),
-        ("focus-2", "mock-focus", "How I plan a focused week", 1, "aqz-KE-bpKQ", 94_300, 3_910, 860, 42),
-        ("design-1", "mock-design", "Interfaces worth studying", 0, "3JZ_D3ELwOQ", 241_800, 11_240, 2_410, 103),
-        ("design-2", "mock-design", "Typography in product design", 1, "kJQP7kiw5Fk", 128_500, 5_640, 980, 51),
-        ("learn-1", "mock-learn", "A short lesson on data stories", 0, "9bZkp7q19f0", 76_200, 2_980, 620, 24),
+        ("focus-1", "mock-focus", "Một giờ làm việc sâu trong yên tĩnh", 0, "dQw4w9WgXcQ", 182_400, 6_820, 1_730, 68),
+        ("focus-2", "mock-focus", "Cách tôi lên kế hoạch cho một tuần tập trung", 1, "aqz-KE-bpKQ", 94_300, 3_910, 860, 42),
+        ("design-1", "mock-design", "Những giao diện đáng để học hỏi", 0, "3JZ_D3ELwOQ", 241_800, 11_240, 2_410, 103),
+        ("design-2", "mock-design", "Kiểu chữ trong thiết kế sản phẩm", 1, "kJQP7kiw5Fk", 128_500, 5_640, 980, 51),
+        ("learn-1", "mock-learn", "Bài học ngắn về kể chuyện bằng dữ liệu", 0, "9bZkp7q19f0", 76_200, 2_980, 620, 24),
     ]
     conn.executemany("insert into playlists values (?, ?, ?)", playlists)
     conn.executemany(
@@ -109,6 +123,12 @@ def get_snapshots_for_videos(video_ids: list[str]) -> dict[str, list[dict]]:
     return grouped
 
 
+def count_tracked_videos() -> int:
+    with _connection() as conn:
+        _seed_if_empty(conn)
+        return conn.execute("select count(*) from videos").fetchone()[0]
+
+
 def _mock_stats(seed: str):
     value = sum(ord(char) for char in seed)
     return 40_000 + value * 107, 1_600 + value * 11
@@ -150,3 +170,23 @@ def delete_video(video_id: str) -> None:
     with _connection() as conn:
         conn.execute("delete from snapshots where video_id = ?", (video_id,))
         conn.execute("delete from videos where id = ?", (video_id,))
+
+
+def refresh_all() -> int:
+    """Thêm snapshot demo mới cho mọi video đã theo dõi."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _connection() as conn:
+        _seed_if_empty(conn)
+        videos = _rows(conn.execute("select id, youtube_video_id from videos order by id"))
+        for index, video in enumerate(videos, start=1):
+            latest = conn.execute(
+                "select views, likes from snapshots where video_id = ? order by captured_at desc limit 1",
+                (video["id"],),
+            ).fetchone()
+            view_growth = 40 + (sum(map(ord, video["youtube_video_id"] or video["id"])) % 260) + index
+            like_growth = max(1, view_growth // 18)
+            conn.execute(
+                "insert into snapshots values (?, ?, ?, ?)",
+                (video["id"], latest["views"] + view_growth, latest["likes"] + like_growth, now),
+            )
+    return len(videos)
