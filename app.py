@@ -108,7 +108,8 @@ def short_timestamp(raw: str) -> str:
 
 
 def render_video(playlist: dict, video: dict) -> None:
-    snapshots = get_snapshots_for_videos([video["id"]]).get(video["id"], [])
+    # Lấy cả playlist một lần: trang playlist và từng trang video dùng chung cache này.
+    snapshots = playlist_summary(playlist)["snapshots"].get(video["id"], [])
     latest = compute_video_metrics(video, snapshots)
     day_start = datetime.combine(datetime.now(TZ).date(), time.min, tzinfo=TZ).astimezone(ZoneInfo("UTC"))
     baseline = next((snap for snap in reversed(snapshots) if datetime.fromisoformat(snap["captured_at"].replace("Z", "+00:00")) < day_start), snapshots[0] if snapshots else {"views": 0, "likes": 0})
@@ -131,7 +132,13 @@ def add_dialog():
         submitted = st.form_submit_button(":material/add: Thêm", type="primary")
     if submitted:
         try:
-            playlist = import_youtube_playlist(value) if mode.startswith("Import") else create_local_playlist(value)
+            if mode.startswith("Import"):
+                with st.status("Đang import playlist YouTube...", expanded=True) as status:
+                    st.write("Đang lấy danh sách video và số liệu ban đầu.")
+                    playlist = import_youtube_playlist(value)
+                    status.update(label="Đã thêm playlist", state="complete", expanded=False)
+            else:
+                playlist = create_local_playlist(value)
             st.query_params["view"] = "playlist"; st.query_params["playlist"] = playlist["id"]; st.rerun()
         except Exception as error: st.error(str(error))
 
