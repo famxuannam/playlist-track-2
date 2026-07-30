@@ -160,23 +160,6 @@ def delete_video_dialog(playlist, video):
         delete_video(video["id"]); st.query_params["view"] = "playlist"; st.query_params["playlist"] = playlist["id"]; st.rerun()
 
 
-@st.dialog("Cập nhật số liệu", width="small")
-def refresh_dialog(video_count: int):
-    if video_count > 50:
-        st.warning(f"Bạn sắp cập nhật {video_count} video. Thao tác này có thể tốn quota YouTube API.")
-    else:
-        st.write(f"Cập nhật views và likes mới nhất cho {video_count} video đang theo dõi?")
-    if st.button(":material/refresh: Cập nhật tất cả", type="primary", key="confirm_refresh"):
-        try:
-            with st.spinner("Đang cập nhật số liệu..."):
-                refreshed = refresh_all()
-            st.session_state["refresh_success"] = refreshed
-            st.query_params.pop("refresh", None)
-            st.rerun()
-        except Exception as error:
-            st.error(f"Chưa thể cập nhật số liệu: {error}")
-
-
 st.html(THREADS_CSS)
 st.markdown("""<style>
 section[role="dialog"] { background:#fff !important; border:1px solid #e8e8e8 !important; border-radius:20px !important; box-shadow:0 18px 48px rgba(0,0,0,.18) !important; padding:20px !important; }
@@ -222,6 +205,13 @@ try:
     refresh_url = "?" + urlencode(refresh_params)
     st.html(f'''<a class="fab" href="{escape(refresh_url)}" aria-label="Cập nhật số liệu" title="Cập nhật số liệu"><span class="material-symbols-rounded">refresh</span></a>''')
     if st.query_params.get("refresh") == "1":
-        refresh_dialog(count_tracked_videos())
+        video_count = count_tracked_videos()
+        if video_count > 50:
+            st.toast(f"Cập nhật {video_count} video có thể tốn quota YouTube API.", icon="⚠️")
+        with st.spinner("Đang cập nhật số liệu..."):
+            refreshed = refresh_all()
+        st.session_state["refresh_success"] = refreshed
+        st.query_params.pop("refresh", None)
+        st.rerun()
 except Exception:
     render_shell("", '<div class="empty-state">Chưa thể kết nối dữ liệu. Khi sẵn sàng, hãy cấu hình secrets cho Supabase để xem các playlist đang theo dõi.</div>')
