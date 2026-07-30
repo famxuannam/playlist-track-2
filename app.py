@@ -10,7 +10,7 @@ from analytics import compute_playlist_metrics, compute_video_metrics
 from db import add_video_to_playlist, count_tracked_videos, create_local_playlist, delete_playlist, delete_video, get_snapshots_for_videos, get_videos_for_playlist, import_youtube_playlist, list_playlists, refresh_all
 
 
-st.set_page_config(page_title="Tracker", layout="wide")
+st.set_page_config(page_title="Theo dõi playlist", layout="wide")
 TZ = ZoneInfo("Asia/Ho_Chi_Minh")
 
 THREADS_CSS = """
@@ -80,10 +80,10 @@ def render_home(playlists: list[dict]) -> None:
         growth = totals["delta_update_views"]
         growth_html = f'<span class="stat-growth">+{compact_number(growth)} từ lần cập nhật trước</span>' if growth else ""
         cards.append(
-            f'''<article class="track-card"><div class="track-avatar">{cover}</div><a class="track-main" href="{page_url("playlist", playlist=playlist["id"])}"><div class="track-meta"><div class="track-name">{title}</div><div class="track-count">· {len(videos)} {"video" if len(videos) == 1 else "videos"}</div></div><div class="track-caption">YouTube playlist tracker</div><div class="track-stats">{metric_html("visibility", totals["views"], "views")}{metric_html("favorite", totals["likes"], "likes")}{growth_html}</div></a><a class="icon-delete" href="?view=delete&playlist={playlist["id"]}" aria-label="Xóa playlist"><span class="material-symbols-rounded">delete</span></a></article>'''
+            f'''<article class="track-card"><div class="track-avatar">{cover}</div><a class="track-main" href="{page_url("playlist", playlist=playlist["id"])}"><div class="track-meta"><div class="track-name">{title}</div><div class="track-count">· {len(videos)} video</div></div><div class="track-caption">Theo dõi playlist YouTube</div><div class="track-stats">{metric_html("visibility", totals["views"], "lượt xem")}{metric_html("favorite", totals["likes"], "lượt thích")}{growth_html}</div></a><a class="icon-delete" href="?view=delete&playlist={playlist["id"]}" aria-label="Xóa playlist"><span class="material-symbols-rounded">delete</span></a></article>'''
         )
-    content = '<div class="intro"><div class="intro-title">Your tracked playlists</div><div class="intro-copy">A quiet overview of the latest YouTube numbers.</div></div>'
-    content += '<div class="history-heading">Playlists <a class="delete-link" href="?view=add">+ Thêm playlist</a></div>'
+    content = '<div class="intro"><div class="intro-title">Playlist đang theo dõi</div><div class="intro-copy">Tổng quan nhanh về số liệu YouTube mới nhất.</div></div>'
+    content += '<div class="history-heading">Playlist <a class="delete-link" href="?view=add">+ Thêm playlist</a></div>'
     content += "".join(cards) or '<div class="empty-state">Chưa có dữ liệu theo dõi.</div>'
     render_shell("", content)
 
@@ -91,14 +91,14 @@ def render_home(playlists: list[dict]) -> None:
 def render_playlist(playlist: dict) -> None:
     summary = playlist_summary(playlist)
     videos, snapshots, totals = summary["videos"], summary["snapshots"], summary["totals"]
-    metrics = f'''<div class="detail-summary"><div class="detail-metric"><div class="metric-label">Views</div><div class="metric-value">{compact_number(totals["views"])}</div></div><div class="detail-metric"><div class="metric-label">Likes</div><div class="metric-value">{compact_number(totals["likes"])}</div></div><div class="detail-metric"><div class="metric-label">Từ lần cập nhật trước</div><div class="metric-value stat-growth">+{compact_number(totals["delta_update_views"])}</div></div></div>'''
+    metrics = f'''<div class="detail-summary"><div class="detail-metric"><div class="metric-label">Lượt xem</div><div class="metric-value">{compact_number(totals["views"])}</div></div><div class="detail-metric"><div class="metric-label">Lượt thích</div><div class="metric-value">{compact_number(totals["likes"])}</div></div><div class="detail-metric"><div class="metric-label">Từ lần cập nhật trước</div><div class="metric-value stat-growth">+{compact_number(totals["delta_update_views"])}</div></div></div>'''
     rows = []
     for video in videos:
         metric = compute_video_metrics(video, snapshots.get(video["id"], []))
         rows.append(
-            f'''<article class="video-row"><a class="video-link" href="{page_url("video", playlist=playlist["id"], video=video["id"])}"><div class="video-thumb"><img src="{thumbnail_url(video)}" alt=""></div><div><div class="video-name">{escape(video["title"])}</div><div class="video-meta">{compact_number(metric["views"])} views · {compact_number(metric["likes"])} likes · <span class="stat-growth">+{compact_number(metric["delta_update_views"])}</span></div></div></a><a class="icon-delete" href="?view=delete_video&playlist={playlist["id"]}&video={video["id"]}" aria-label="Xóa video"><span class="material-symbols-rounded">delete</span></a></article>'''
+            f'''<article class="video-row"><a class="video-link" href="{page_url("video", playlist=playlist["id"], video=video["id"])}"><div class="video-thumb"><img src="{thumbnail_url(video)}" alt=""></div><div><div class="video-name">{escape(video["title"])}</div><div class="video-meta">{compact_number(metric["views"])} lượt xem · {compact_number(metric["likes"])} lượt thích · <span class="stat-growth">+{compact_number(metric["delta_update_views"])}</span></div></div></a><a class="icon-delete" href="?view=delete_video&playlist={playlist["id"]}&video={video["id"]}" aria-label="Xóa video"><span class="material-symbols-rounded">delete</span></a></article>'''
         )
-    content = metrics + f'<div class="history-heading">Videos <a class="delete-link" href="?view=playlist&playlist={playlist["id"]}&action=add_video">+ Thêm video</a></div>' + ("".join(rows) or '<div class="empty-state">Playlist chưa có video.</div>')
+    content = metrics + f'<div class="history-heading">Video <a class="delete-link" href="?view=playlist&playlist={playlist["id"]}&action=add_video">+ Thêm video</a></div>' + ("".join(rows) or '<div class="empty-state">Playlist chưa có video.</div>')
     render_shell(playlist["title"], content, page_url())
 
 
@@ -119,21 +119,22 @@ def render_video(playlist: dict, video: dict) -> None:
         like_growth = snapshot["likes"] - baseline["likes"]
         table_rows.append(f'''<tr><td>{short_timestamp(snapshot["captured_at"])}</td><td>{compact_number(snapshot["views"])} <span class="inline-growth">(+{compact_number(view_growth)})</span></td><td>{compact_number(snapshot["likes"])} <span class="inline-growth">(+{compact_number(like_growth)})</span></td></tr>''')
     youtube_url = f'https://www.youtube.com/watch?v={quote(str(video.get("youtube_video_id") or ""), safe="")}'
-    hero = f'''<div class="video-hero"><div class="video-thumb"><img src="{thumbnail_url(video)}" alt=""></div><div><div class="track-caption">{escape(playlist["title"])}</div><div class="track-stats">{metric_html("visibility", latest["views"], "views")}{metric_html("favorite", latest["likes"], "likes")}</div><a class="youtube-link" href="{youtube_url}" target="_blank" rel="noopener noreferrer"><span class="material-symbols-rounded">open_in_new</span>Xem trên YouTube</a></div></div>'''
-    table = '<div class="history-heading">Lịch sử</div><table class="history-table"><thead><tr><th>Mốc thời gian</th><th>Views</th><th>Likes</th></tr></thead><tbody>' + "".join(table_rows) + '</tbody></table>'
+    hero = f'''<div class="video-hero"><div class="video-thumb"><img src="{thumbnail_url(video)}" alt=""></div><div><div class="track-caption">{escape(playlist["title"])}</div><div class="track-stats">{metric_html("visibility", latest["views"], "lượt xem")}{metric_html("favorite", latest["likes"], "lượt thích")}</div><a class="youtube-link" href="{youtube_url}" target="_blank" rel="noopener noreferrer"><span class="material-symbols-rounded">open_in_new</span>Xem trên YouTube</a></div></div>'''
+    table = '<div class="history-heading">Lịch sử</div><table class="history-table"><thead><tr><th>Mốc thời gian</th><th>Lượt xem</th><th>Lượt thích</th></tr></thead><tbody>' + "".join(table_rows) + '</tbody></table>'
     render_shell(video["title"], hero + table, page_url("playlist", playlist=playlist["id"]))
 
 
 @st.dialog("Thêm playlist", width="small")
 def add_dialog():
-    mode = st.radio("Cách thêm", ["Import playlist YouTube", "Tạo playlist nội bộ"], horizontal=True)
+    import_mode = "Nhập playlist YouTube"
+    mode = st.radio("Cách thêm", [import_mode, "Tạo playlist nội bộ"], horizontal=True)
     with st.form("add_playlist"):
-        value = st.text_input("URL playlist YouTube" if mode.startswith("Import") else "Tên playlist mới")
+        value = st.text_input("URL playlist YouTube" if mode == import_mode else "Tên playlist mới")
         submitted = st.form_submit_button(":material/add: Thêm", type="primary")
     if submitted:
         try:
-            if mode.startswith("Import"):
-                with st.status("Đang import playlist YouTube...", expanded=True) as status:
+            if mode == import_mode:
+                with st.status("Đang nhập playlist YouTube...", expanded=True) as status:
                     st.write("Đang lấy danh sách video và số liệu ban đầu.")
                     playlist = import_youtube_playlist(value)
                     status.update(label="Đã thêm playlist", state="complete", expanded=False)
